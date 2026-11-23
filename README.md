@@ -49,7 +49,7 @@ code-reviewer  ||  qa-blind  ||  security-reviewer        (paralelo, read-only)
 | `global/agents/` | os cinco agentes (planner, builder, code-reviewer, qa-blind, security-reviewer) |
 | `global/skills/tdd-java/` | skill de TDD aplicada a Maven/JUnit 5 |
 | `global/scripts/agent-gate.*` | gate determinístico (bash e PowerShell) |
-| `global/commands/` | `/feature` e `/review` |
+| `global/commands/` | `/feature`, `/execute` e `/review` |
 | `global/AGENTS.md` | convenções Java/Spring universais |
 | `global/opencode.json` | `subagent_depth`, instruções e matriz de permissões |
 | `project-template/AGENTS.md` | modelo do que é específico de cada repositório |
@@ -183,48 +183,80 @@ barato. Para não vazar para um default remoto, fixe no `opencode.json`:
 (Se preferir manter comentário no arquivo, renomeie para `opencode.jsonc` — `opencode.json`
 não aceita `//`.)
 
-## Fluxo sanduíche entre harnesses (Antigravity + OpenCode)
+## Dois harnesses: o artefato é a ponte (caminho recomendado)
 
-Se seus melhores modelos estão num harness e os mais baratos em outro, a divisão natural é:
+Se seus melhores modelos estão num harness e os mais baratos em outro, a divisão natural é
+**planejar no caro, executar no barato, revisar no caro**. Isso funciona — mas não por
+chamada de modelo para modelo.
+
+O impedimento não é "vendor diferente": é **harness diferente**. Um subagente do OpenCode é
+uma sessão dentro do runtime do OpenCode; o Antigravity é outro runtime. Nenhum dos dois
+expõe o outro como ferramenta.
+
+### Como fazer, sem tocar em credencial
+
+O contrato entre os dois é **um arquivo markdown**. Nada de token compartilhado, nada de
+subprocesso:
+
+```bash
+# 1) no Antigravity: peça o plano (use o prompt abaixo) e salve em
+#    .opencode/plans/<slug>.md
+# 2) aqui no OpenCode:
+opencode
+> /execute .opencode/plans/<slug>.md
+# 3) se quiser o review adversarial no Antigravity: cole `git diff` + o plano lá
+```
+
+O comando `/execute` pula o planejamento, confere se o plano tem as seções mínimas,
+manda o `builder` implementar com TDD, roda o gate e aciona os revisores.
+
+Template do plano: [`project-template/.opencode/plans/_TEMPLATE.md`](project-template/.opencode/plans/_TEMPLATE.md).
+
+### Prompt para o harness de planejamento
+
+Cole no agy (ou em qualquer modelo de fronteira):
 
 ```
-planejar (fronteira) -> executar (barato) -> review adversarial (fronteira)
+Você é o planejador. Investigue o repositório antes de perguntar.
+Escreva o plano em markdown com EXATAMENTE estas seções:
+Contexto, Contrato, Arquivos que podem ser tocados (lista fechada), Passos
+(cada passo com o comando de verificação), Critérios de aceite (verificáveis
+por comando ou teste), Riscos, Fora de escopo.
+Não escreva código. Responda somente com o markdown do plano.
+
+Feature: <descreva aqui>
 ```
 
-**Isso não acontece por chamada de modelo para modelo.** O impedimento não é "vendor
-diferente": é **harness diferente**. O subagente do OpenCode é uma sessão dentro do
-runtime do OpenCode; o Antigravity é outro runtime. Nenhum dos dois expõe o outro como
-ferramenta.
+### Por que este caminho e não acoplar os dois
 
-Mas dá para cruzar por outra costura. Quatro pontes, da mais integrada à mais artesanal:
+- **Zero risco de conta**: cada harness roda na superfície para a qual você paga. O que
+  costuma gerar bloqueio é reutilizar sessão/token de um produto dentro de outro — mover
+  um `.md` não é isso.
+- **Auditável**: o plano é versionável, revisável e sobrevive à sessão.
+- **Desacoplado**: atualizar um harness não quebra o outro.
 
-| Ponte | Como funciona | Custo |
+### As alternativas, e o que cada uma custa
+
+| Ponte | Como funciona | Risco / custo |
 |---|---|---|
-| **Provider extra num harness só** | adicionar o provider do modelo de fronteira ao OpenCode e rotear por papel em `model`. Tudo em uma sessão | precisa de acesso por API key (assinatura de produto não serve) |
-| **CLI cruzada** | um agente roda o outro harness como **subprocesso** (`agy ...` ou `opencode run "..."`). É o padrão `Claude -> bash -> codex exec` que aparece nos relatos | sem contexto compartilhado: tudo viaja por arquivo/stdout |
-| **SDK** | o Antigravity tem **SDK Python** (runtime, sessões assíncronas, agentes); dá para orquestrar os dois de um script só | exige escrever o orquestrador |
-| **Artefato como protocolo** | plano `.md` e `git diff` são o contrato; você troca de harness entre etapas | manual, mas zero glue e zero credencial |
+| **Artefato** (recomendada) | plano `.md` e `git diff` são o contrato; você troca de harness entre etapas | manual; precisa de disciplina de arquivo |
+| **Provider extra num harness só** | adicionar o provider do modelo de fronteira ao OpenCode e rotear por `model` | exige **API key legítima** (AI Studio/Vertex). Nunca reaproveitar a sessão do produto |
+| **CLI cruzada** | um harness roda o outro como subprocesso (`agy ...`, `opencode run "..."`) | sem contexto compartilhado; ver `scripts/sandwich.py` |
+| **SDK** | orquestrar os dois de um script (o Antigravity tem SDK Python) | exige escrever o orquestrador |
 
-### `scripts/sandwich.py` — a ponte por CLI, pronta
-
-Implementa o fluxo acima chamando os dois binários:
+`scripts/sandwich.py` implementa a ponte por CLI, para quando você quiser automatizar o
+ciclo em vez de trocar de janela. É opcional e não é necessário para o fluxo acima:
 
 ```bash
 CHEAP_MODEL=opencode-go/deepseek-v4.1-flash \
-AGY_HEADLESS=run \
 python3 scripts/sandwich.py "adicionar GET /atletas/{id} com 404"
 ```
 
-O que ele faz: pede o plano ao `agy` → mostra para você aprovar → `opencode run --agent
-builder` implementa com TDD → roda o gate → manda `git diff` + plano para o `agy` revisar
-→ ACCEPT encerra, REWORK volta ao builder (até 3 ciclos, depois escala).
-
-Variáveis: `AGY_BIN`, `AGY_HEADLESS` (subcomando não-interativo do agy — **confirme com
-`agy --help`**), `OPENCODE_BIN`, `CHEAP_MODEL`, `MAX_CYCLES`, `AGENT_GATE`.
-
-Duas honestidades: as flags headless do `agy` mudam por versão, então o script deixa o
-subcomando configurável; e se o gate devolver `3` (nenhum build tool reconhecido) o script
-**aborta** em vez de fingir que validou.
+Ele pede o plano ao `agy`, mostra para aprovar, executa no `opencode run --agent builder`,
+roda o gate, e devolve `plano + diff` ao `agy` para review adversarial (ACCEPT encerra,
+REWORK volta ao builder, até 3 ciclos). As flags headless do `agy` variam por versão:
+confirme com `agy --help` e ajuste `AGY_HEADLESS`. Se o gate devolver `3`, ele aborta em vez
+de fingir que validou.
 
 ## Cuidado ao editar permissões: a ÚLTIMA regra vence
 
@@ -258,11 +290,13 @@ REWORK sai do trilho (limite: 3), e revisar o diff final. O resto é automático
 ├── skills/
 │   └── tdd-java/SKILL.md      # RED-GREEN-REFACTOR aplicado a Maven
 ├── commands/
-│   ├── feature.md             # /feature
+│   ├── feature.md             # /feature  (planeja + executa)
+│   ├── execute.md             # /execute  (plano já pronto, de outro harness)
 │   └── review.md              # /review
 └── scripts/
     ├── agent-gate.sh          # mvn verify + SAST, usado pelo reviewer
     └── agent-gate.ps1
 ```
 
-No projeto, opcional: `.agent-gate.sh` (override do gate quando o repo não é Maven puro).
+No projeto, opcional: `.agent-gate.sh` (override do gate quando o repo não é Maven puro)
+e `.opencode/plans/` (onde os planos vivem — o template está em `project-template/`).
