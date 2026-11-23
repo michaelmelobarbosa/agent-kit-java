@@ -53,6 +53,7 @@ code-reviewer  ||  qa-blind  ||  security-reviewer        (paralelo, read-only)
 | `global/AGENTS.md` | convenções Java/Spring universais |
 | `global/opencode.json` | `subagent_depth`, instruções e matriz de permissões |
 | `project-template/AGENTS.md` | modelo do que é específico de cada repositório |
+| `docs/modelos.md` | qual modelo por etapa, política de escalonamento e quando revisar |
 
 Instalação, verificação e ajuste de modelo: veja abaixo.
 
@@ -149,6 +150,9 @@ revisor.
 | `qa-blind` | modelo barato | executa e lê saída, não julga arquitetura |
 | `code-reviewer` | **outro vendor** | quem avalia o próprio trabalho é otimista; mesma família compartilha ponto cego |
 | `security-reviewer` | **outro vendor** | idem, e é onde o ponto cego custa mais |
+
+Decisão completa, com política de escalonamento e filtro de "quando vale revisar":
+[`docs/modelos.md`](docs/modelos.md).
 
 Os `.md` já trazem a sugestão como **comentário** (`# model: ...`), justamente para não
 quebrar o carregamento se o id não existir na sua conta. Para ativar, descomente e
