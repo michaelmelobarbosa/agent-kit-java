@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "subagent_depth": 2,
+
+  "instructions": ["~/.config/opencode/AGENTS.md"],
+
+  "permission": {
+    "edit": "ask",
+    "bash": "ask",
+    "skill": "allow",
+    "webfetch": "ask",
+    "external_directory": "deny"
+  },
+
+  "agent": {
+    "plan": {
+      "mode": "primary",
+      "permission": {
+        "edit": { "*": "deny", "**/plans/**": "allow" },
+        "bash": "ask"
+      }
+    },
+
+    "build": {
+      "mode": "primary",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "mvn *": "allow",
+          "./mvnw *": "allow",
+          "git status": "allow",
+          "git diff*": "allow",
+          "git log*": "allow",
+          "git commit*": "deny",
+          "git push*": "deny"
+        },
+        "task": {
+          "*": "deny",
+          "builder": "allow",
+          "code-reviewer": "allow",
+          "qa-blind": "allow",
+          "security-reviewer": "allow",
+          "explore": "allow"
+        }
+      }
+    }
+  }
+}
