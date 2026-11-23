@@ -1,6 +1,7 @@
 ---
 description: Audita o diff por riscos de segurança — injeção, autorização, segredo exposto, dependência vulnerável — e devolve must-fixes. Use antes de commit em qualquer mudança que toque controller, query, autenticação, configuração ou dependência.
 mode: subagent
+# model: <outro vendor>   # ver "Revisão cross-vendor" no README — descomente depois de confirmar o id em /models
 permission:
   edit: deny
   bash:

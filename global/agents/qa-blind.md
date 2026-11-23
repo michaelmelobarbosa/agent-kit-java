@@ -1,6 +1,7 @@
 ---
 description: Verifica o comportamento entregue contra a spec, como um testador cego que não sabe como o código foi escrito. Devolve READY ou NOT READY com evidência. Use após o builder terminar, em paralelo com o code-reviewer.
 mode: subagent
+# model: opencode-go/deepseek-v4.1-flash   # executa checks e lê saída de comando — descomente depois de confirmar o id em /models
 permission:
   edit: deny
   bash:

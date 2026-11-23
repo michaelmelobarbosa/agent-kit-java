@@ -1,6 +1,7 @@
 ---
 description: Revisa plano, diff ou implementação concluída e devolve veredito ACCEPT ou REWORK com must-fixes ranqueados. Use antes de qualquer commit e sempre que o builder disser que terminou.
 mode: subagent
+# model: <outro vendor>   # ver "Revisão cross-vendor" no README — descomente depois de confirmar o id em /models
 permission:
   edit: deny
   bash:

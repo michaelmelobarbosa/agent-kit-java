@@ -1,6 +1,7 @@
 ---
 description: Planeja uma feature ou bug não trivial e grava o plano em .opencode/plans/<slug>.md antes de qualquer edição de código. Usar no início de toda tarefa que toque mais de um arquivo ou tenha decisão de design.
 mode: primary
+# model: opencode-go/kimi-k3   # julgamento: escreve o plano e interpreta ambiguidade — descomente depois de confirmar o id em /models
 permission:
   edit:
     "*": deny

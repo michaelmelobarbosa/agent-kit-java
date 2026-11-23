@@ -125,17 +125,63 @@ opencode
 Esperado: `planner` escreve `.opencode/plans/<slug>.md` → você aprova → `builder`
 implementa com teste primeiro → `code-reviewer` roda o gate e devolve ACCEPT ou REWORK.
 
-## Ajustar modelos
+## Modelos: por que o kit vem sem `model`
 
-Os agentes vêm **sem `model`** fixo de propósito: sem `model`, o subagente usa o modelo
-do primário que o chamou. Para rotear por custo (caro no julgamento, barato na mecânica),
-descomente o campo no frontmatter de cada `.md`. Com `opencode go`, os ids que costumam
-existir:
+**Nenhum agente do kit tem modelo fixo.** Isso é deliberado, mas tem consequência — e é
+a primeira coisa que você provavelmente vai querer mudar.
 
-- `opencode-go/kimi-k3` — julgamento (planner, reviewer)
-- `opencode-go/deepseek-v4.1-flash` — mecânica (builder, qa-blind)
+Como o OpenCode resolve a ausência do campo:
 
-Confirme com `/models` antes de fixar — id de modelo muda de mês em mês.
+- **primary** sem `model` → usa o modelo globalmente configurado no `opencode.json`;
+- **subagent** sem `model` → usa o modelo do **primário que o chamou**.
+
+Na prática, hoje: o `planner` roda no seu modelo padrão, chama o `builder` que herda esse
+mesmo modelo, e o `code-reviewer` idem. **Um modelo faz os cinco papéis.** Funciona, mas
+joga fora duas coisas que motivaram o desenho: roteamento por custo e independência do
+revisor.
+
+### O mapeamento que eu recomendo
+
+| Papel | Perfil | Por quê |
+|---|---|---|
+| `planner` | modelo forte | interpreta ambiguidade, decide escopo — o lugar mais caro de errar |
+| `builder` | modelo barato/rápido | é volume: escrever teste, implementar, rodar comando |
+| `qa-blind` | modelo barato | executa e lê saída, não julga arquitetura |
+| `code-reviewer` | **outro vendor** | quem avalia o próprio trabalho é otimista; mesma família compartilha ponto cego |
+| `security-reviewer` | **outro vendor** | idem, e é onde o ponto cego custa mais |
+
+Os `.md` já trazem a sugestão como **comentário** (`# model: ...`), justamente para não
+quebrar o carregamento se o id não existir na sua conta. Para ativar, descomente e
+confirme o identificador com `/models` dentro do OpenCode — id de modelo muda de mês em
+mês, e um `model` inválido faz o agente falhar.
+
+### Revisão cross-vendor: três caminhos
+
+O `opencode go` é uma assinatura de modelos abertos curados. O Antigravity é outro
+**harness**, não um provider do OpenCode — então "revisor de outro vendor" não sai de
+graça só porque você usa os dois no T3 Code. Três opções, da mais forte à mais fraca:
+
+1. **Adicionar um provider ao OpenCode** (Google/Gemini via API key, OpenCode Zen, ou
+   GitHub Copilot). Aí `code-reviewer` e `security-reviewer` apontam para outro vendor e o
+   fluxo inteiro acontece em uma sessão.
+2. **Revisar no Antigravity**, em thread separada do T3 Code: você roda o `/review` lá,
+   colando `git diff` + caminho do plano. O kit continua igual; só o passo de revisão sai
+   do OpenCode. É o arranjo que mais aparece nos relatos de quem faz isso na prática.
+3. **Mesmo vendor, sessão nova** (o que você tem hoje sem configurar nada): melhor que
+   revisar na mesma conversa, pior que trocar de família. Não é teatro, mas não é a
+   independência que o desenho promete.
+
+### Custo de pano de fundo
+
+O OpenCode roda tarefas pequenas (gerar título de sessão, por exemplo) num modelo
+barato. Para não vazar para um default remoto, fixe no `opencode.json`:
+
+```jsonc
+"small_model": "opencode-go/<modelo-barato>"
+```
+
+(Se preferir manter comentário no arquivo, renomeie para `opencode.jsonc` — `opencode.json`
+não aceita `//`.)
 
 ## Cuidado ao editar permissões: a ÚLTIMA regra vence
 

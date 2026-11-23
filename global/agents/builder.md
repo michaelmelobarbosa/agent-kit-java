@@ -1,6 +1,7 @@
 ---
 description: Implementa um plano já aprovado em .opencode/plans/. Escreve o teste que falha antes do código, roda mvn e devolve relatório com evidência. Nunca commita.
 mode: subagent
+# model: opencode-go/deepseek-v4.1-flash   # mecânica: volume de tokens, não precisa de topo de linha — descomente depois de confirmar o id em /models
 permission:
   edit: allow
   bash:
