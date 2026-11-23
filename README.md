@@ -183,6 +183,49 @@ barato. Para não vazar para um default remoto, fixe no `opencode.json`:
 (Se preferir manter comentário no arquivo, renomeie para `opencode.jsonc` — `opencode.json`
 não aceita `//`.)
 
+## Fluxo sanduíche entre harnesses (Antigravity + OpenCode)
+
+Se seus melhores modelos estão num harness e os mais baratos em outro, a divisão natural é:
+
+```
+planejar (fronteira) -> executar (barato) -> review adversarial (fronteira)
+```
+
+**Isso não acontece por chamada de modelo para modelo.** O impedimento não é "vendor
+diferente": é **harness diferente**. O subagente do OpenCode é uma sessão dentro do
+runtime do OpenCode; o Antigravity é outro runtime. Nenhum dos dois expõe o outro como
+ferramenta.
+
+Mas dá para cruzar por outra costura. Quatro pontes, da mais integrada à mais artesanal:
+
+| Ponte | Como funciona | Custo |
+|---|---|---|
+| **Provider extra num harness só** | adicionar o provider do modelo de fronteira ao OpenCode e rotear por papel em `model`. Tudo em uma sessão | precisa de acesso por API key (assinatura de produto não serve) |
+| **CLI cruzada** | um agente roda o outro harness como **subprocesso** (`agy ...` ou `opencode run "..."`). É o padrão `Claude -> bash -> codex exec` que aparece nos relatos | sem contexto compartilhado: tudo viaja por arquivo/stdout |
+| **SDK** | o Antigravity tem **SDK Python** (runtime, sessões assíncronas, agentes); dá para orquestrar os dois de um script só | exige escrever o orquestrador |
+| **Artefato como protocolo** | plano `.md` e `git diff` são o contrato; você troca de harness entre etapas | manual, mas zero glue e zero credencial |
+
+### `scripts/sandwich.py` — a ponte por CLI, pronta
+
+Implementa o fluxo acima chamando os dois binários:
+
+```bash
+CHEAP_MODEL=opencode-go/deepseek-v4.1-flash \
+AGY_HEADLESS=run \
+python3 scripts/sandwich.py "adicionar GET /atletas/{id} com 404"
+```
+
+O que ele faz: pede o plano ao `agy` → mostra para você aprovar → `opencode run --agent
+builder` implementa com TDD → roda o gate → manda `git diff` + plano para o `agy` revisar
+→ ACCEPT encerra, REWORK volta ao builder (até 3 ciclos, depois escala).
+
+Variáveis: `AGY_BIN`, `AGY_HEADLESS` (subcomando não-interativo do agy — **confirme com
+`agy --help`**), `OPENCODE_BIN`, `CHEAP_MODEL`, `MAX_CYCLES`, `AGENT_GATE`.
+
+Duas honestidades: as flags headless do `agy` mudam por versão, então o script deixa o
+subcomando configurável; e se o gate devolver `3` (nenhum build tool reconhecido) o script
+**aborta** em vez de fingir que validou.
+
 ## Cuidado ao editar permissões: a ÚLTIMA regra vence
 
 `permission` é uma lista avaliada em ordem e **a última regra que casa ganha**. Isso tem
